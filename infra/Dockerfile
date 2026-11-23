@@ -9,8 +9,19 @@ USER root
 # kustomize (Section 6의 'kustomize edit set image' 스테이지에서 사용)
 ARG DOCKER_CLI_VERSION=27.3.1
 ARG KUSTOMIZE_VERSION=5.4.3
+
+# (선택) 사내 TLS 검사 프록시 등 추가 루트 CA — infra/certs/*.crt 를 두면 신뢰 목록에 추가됩니다.
+# 파일이 없으면 아무 영향 없습니다. (*.crt 는 .gitignore 로 커밋되지 않음)
+COPY certs/ /usr/local/share/ca-certificates/extra/
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl ca-certificates git && \
+    update-ca-certificates && \
+    for crt in /usr/local/share/ca-certificates/extra/*.crt; do \
+      [ -f "$crt" ] || continue; \
+      keytool -importcert -noprompt -cacerts -storepass changeit \
+        -alias "extra-$(basename "$crt" .crt)" -file "$crt"; \
+    done && \
     ARCH="$(dpkg --print-architecture | tr -d '[:space:]')" && \
     echo "감지된 아키텍처(dpkg): '${ARCH}' / uname -m: '$(uname -m)'" && \
     case "$ARCH" in \
@@ -36,6 +47,11 @@ RUN apt-get update && \
     docker --version && kubectl version --client && kustomize version
 
 # Jenkins 플러그인 설치
+# updates.jenkins.io 는 다운로드를 임의 미러로 리다이렉트하는데, 일부 미러(예: mirror.ossplanet.net)가
+# 연결 거부/TLS 핸드셰이크 실패를 일으켜 빌드가 멈춥니다. 공식 아카이브 서버로 고정합니다.
+# 다른 미러를 쓰려면: docker build --build-arg JENKINS_UC_DOWNLOAD_URL=https://ftp.belnet.be/mirror/jenkins/plugins ...
+ARG JENKINS_UC_DOWNLOAD_URL=https://archives.jenkins.io/plugins
+ENV JENKINS_UC_DOWNLOAD_URL=${JENKINS_UC_DOWNLOAD_URL}
 COPY plugins.txt /usr/share/jenkins/ref/plugins.txt
 RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt
 
