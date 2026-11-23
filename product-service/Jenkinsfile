@@ -27,10 +27,10 @@ pipeline {
     }
 
     stage('Build') {
-      steps {
-        sh './gradlew bootJar --no-daemon'
-      }
+    steps {
+        sh 'pwd; ls -la; find . -maxdepth 3 -name "gradlew*"'
     }
+}
 
     // stage('Test') {
     //   steps {
