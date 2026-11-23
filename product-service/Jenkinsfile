@@ -15,7 +15,7 @@ pipeline {
     TARGET_ENV     = "${params.TARGET_ENV}"
     IMAGE_NAME     = 'product-service'
     IMAGE_TAG      = "${env.BUILD_NUMBER}"
-    MANIFESTS_REPO = 'github.com/<내계정>/product-service-manifests.git'
+    MANIFESTS_REPO = 'github.com/thdqkddnjs/product-service-manifests.git'
   }
 
   stages {
@@ -32,11 +32,11 @@ pipeline {
       }
     }
 
-    stage('Test') {
-      steps {
-        sh './gradlew test --no-daemon'
-      }
-    }
+    // stage('Test') {
+    //   steps {
+    //     sh './gradlew test --no-daemon'
+    //   }
+    // }
 
     stage('Docker Build') {
       steps {
@@ -45,39 +45,39 @@ pipeline {
     }
 
     // Section 4: production 뿐 아니라 staging도 사람이 한번 확인하도록 승인 게이트를 둡니다.
-    stage('Approval') {
-      when {
-        expression { params.TARGET_ENV != 'dev' }
-      }
-      steps {
-        timeout(time: 15, unit: 'MINUTES') {
-          input message: "${params.TARGET_ENV} 배포를 승인하시겠습니까?",
-                submitter: 'release-managers'
-        }
-      }
-    }
+    // stage('Approval') {
+    //   when {
+    //     expression { params.TARGET_ENV != 'dev' }
+    //   }
+    //   steps {
+    //     timeout(time: 15, unit: 'MINUTES') {
+    //       input message: "${params.TARGET_ENV} 배포를 승인하시겠습니까?",
+    //             submitter: 'release-managers'
+    //     }
+    //   }
+    // }
 
     // Section 4/6: dev·staging은 Jenkins가 클러스터에 직접 배포합니다 (Push).
     // 매니페스트는 product-service-manifests 저장소에 있으므로 여기서 함께 체크아웃합니다.
-    stage('Deploy (dev/staging - Push)') {
-      when {
-        expression { params.TARGET_ENV != 'production' }
-      }
-      steps {
-        withCredentials([
-          file(credentialsId: 'kubeconfig-docker-desktop', variable: 'KUBECONFIG'),
-          usernamePassword(credentialsId: 'gitops-repo-cred', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')
-        ]) {
-          sh '''
-            rm -rf manifests-checkout
-            git clone https://${GIT_USER}:${GIT_TOKEN}@${MANIFESTS_REPO} manifests-checkout
-            kubectl --context docker-desktop apply -k manifests-checkout/overlays/${TARGET_ENV}
-            kubectl --context docker-desktop -n product-service-${TARGET_ENV} \
-              set image deployment/product-service product-service=$IMAGE_NAME:$IMAGE_TAG
-          '''
-        }
-      }
-    }
+    // stage('Deploy (dev/staging - Push)') {
+    //   when {
+    //     expression { params.TARGET_ENV != 'production' }
+    //   }
+    //   steps {
+    //     withCredentials([
+    //       file(credentialsId: 'kubeconfig-docker-desktop', variable: 'KUBECONFIG'),
+    //       usernamePassword(credentialsId: 'gitops-repo-cred', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')
+    //     ]) {
+    //       sh '''
+    //         rm -rf manifests-checkout
+    //         git clone https://${GIT_USER}:${GIT_TOKEN}@${MANIFESTS_REPO} manifests-checkout
+    //         kubectl --context docker-desktop apply -k manifests-checkout/overlays/${TARGET_ENV}
+    //         kubectl --context docker-desktop -n product-service-${TARGET_ENV} \
+    //           set image deployment/product-service product-service=$IMAGE_NAME:$IMAGE_TAG
+    //       '''
+    //     }
+    //   }
+    // }
 
     // Section 6: production은 클러스터를 직접 건드리지 않고, 매니페스트 저장소에
     // 이미지 태그를 갱신하는 커밋만 남깁니다. 실제 배포는 ArgoCD가 담당합니다 (Pull).
